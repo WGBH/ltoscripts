@@ -1,0 +1,46 @@
+#!/bin/sh
+
+#  batch checksum and create PBCore instantiation records for AA files, using md5 and mediainfo
+
+echo "Drag and drop the directory where you would like to save your checksum files and instantiation records and then hit ENTER"
+read dir
+echo "Drag and drop the CSV file containing the AAPB GUIDs"
+read AAPB
+echo "Type in the unique ID of the drive"
+read drive
+echo "Type in the barcode number of the drive, in the format barcode######"
+read barcode
+echo "Type in the barcode number of the designated LTO tape, in the format barcode######"
+read LTO
+mkdir "$dir"/PBCoreInstantiations
+
+for d in $(find . \( ! -regex '.*/\..*' \) ! -path . -type d); do
+    cd $d
+    file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml )
+    i=$( echo "$file" | cut -d '/' -f 2 )
+    c=$(md5 -q "$i")
+    printf '%s\n' "MD5 ($i) = $c" >> "$dir"/"$barcode"_MD5_Source.csv
+    for i in "$i"; do
+        artguid=${PWD##*/}
+        guid=$( cat $AAPB | grep $artguid | cut -d , -f 2 )
+        mediainfo --Output=PBCore2 "$i" >> "$dir"/mediainfo.xml
+        echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        cat "$dir"/mediainfo.xml | grep '<pbcoreInstantiationDocument\|Generated' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        printf '\t%s\n' "<instantiationIdentifier source=\"AAPB GUID\">$guid</instantiationIdentifier>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        cat "$dir"/mediainfo.xml | grep 'instantiationDate\|instantiationDigital' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        printf '\t%s\n' "<instantiationLocation>$LTO/$drive/$artguid/$i</instantiationLocation>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        cat "$dir"/mediainfo.xml | grep 'instantiationMediaType\|instantiationFileSize\|instantiationTimeStart\|instantiationDuration\|instantiationDataRate\|instantiationTracks' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        printf '\t%s\n' "<instantiationGenerations source=\"PBCore Controlled Vocabulary\">Master: preservation</instantiationGenerations>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        sed -n '/<instantiationEssenceTrack>/,/<\instantiationAnnotation/p' "$dir"/mediainfo.xml >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        sed -i '' '$d' "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        cat "$dir"/mediainfo.xml | grep 'instantiationAnnotation' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        printf '\t%s\n\t%s\n' "<instantiationAnnotation annotationType=\"Drive\">Preservation copy on hard drive "$drive", "$barcode"</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"File Name\">$i</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"Artesia GUID\">$artguid</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"MD5 Checksum\">$c</instantiationAnnotation>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+        printf '%s' "</pbcoreInstantiationDocument>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    done
+    cat "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml >> pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    rm "$dir"/mediainfo.xml
+    cd ..
+done
+#
+#  Created by MLA User on 12/18/14.
+#
