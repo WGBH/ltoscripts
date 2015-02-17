@@ -1,0 +1,21 @@
+#!/bin/sh
+
+#  AA_LTO_checksum.sh
+#  
+#
+#  Created by MLA User on 1/7/15.
+#  This script only generates a list of checksums for transferred files, and assumes that AA_PBCorescript has been run to generate checksums for the original files
+
+echo "Drag and drop the directory where you would like to save your checksum files and then hit ENTER"
+read dir
+echo "Type in the barcode number of the drive, in the format barcode######"
+read barcode
+
+for d in $(find . \( ! -regex '.*/\..*' \) ! -path . -type d); do
+    cd $d
+    file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml )
+    i=$( echo "$file" | cut -d '/' -f 2 )
+    c=$(md5 -q "$i")
+    printf '%s\n' "MD5 ("$i") = $c" >> "$dir"/"$barcode"_MD5_Copy.csv
+    cd .. 
+done
