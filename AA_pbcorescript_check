@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# a version of the AA_PBCorescript that automatically checks each drive for derivatives and known failed files using stored csv reference files, and isolates them without processing them
+
+echo "Drag and drop the drive to run the operation on and then hit ENTER"
+read drive
+echo "Drag and drop the directory where you would like to save your checksum files and instantiation records and then hit ENTER"
+read dir
+echo "Drag and drop the CSV file containing the AAPB GUIDs"
+read AAPB
+echo "Type in the barcode number of the drive, in the format barcode######"
+read barcode
+echo "Type in the barcode number of the designated LTO tape, in the format barcode######"
+read LTO
+mkdir "$dir"/PBCoreInstantiations
+
+catfun ()
+{ # create PBCore XML document for AAPB asset}
+
+	printf '%s\n' "MD5 ($i) = $c" >> "$dir"/"$barcode"_MD5_Source.csv
+    artguid=${PWD##*/}
+    guid=$( cat $AAPB | grep $artguid | cut -d , -f 2 )
+    mediainfo --Output=PBCore2 "$i" >> "$dir"/mediainfo.xml
+    driveid=$( pwd | cut -d / -f 3 )
+    path=$( pwd | cut -c 10-)
+    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    cat "$dir"/mediainfo.xml | grep '<pbcoreInstantiationDocument\|Generated' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    printf '\t%s\n' "<instantiationIdentifier source=\"AAPB GUID\">$guid</instantiationIdentifier>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    cat "$dir"/mediainfo.xml | grep 'instantiationDate\|instantiationDigital' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    printf '\t%s\n' "<instantiationLocation>$LTO/$path/$i</instantiationLocation>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    cat "$dir"/mediainfo.xml | grep 'instantiationMediaType\|instantiationFileSize\|instantiationTimeStart\|instantiationDuration\|instantiationDataRate\|instantiationTracks' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    printf '\t%s\n' "<instantiationGenerations source=\"PBCore Controlled Vocabulary\">Master: preservation</instantiationGenerations>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    sed -n '/<instantiationEssenceTrack>/,/<\instantiationAnnotation/p' "$dir"/mediainfo.xml >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    sed -i '' '$d' "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    cat "$dir"/mediainfo.xml | grep 'instantiationAnnotation' >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    printf '\t%s\n\t%s\n' "<instantiationAnnotation annotationType=\"Drive\">Preservation copy on hard drive "$driveid", "$barcode"</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"File Name\">$i</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"Artesia GUID\">$artguid</instantiationAnnotation>" "<instantiationAnnotation annotationType=\"MD5 Checksum\">$c</instantiationAnnotation>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    printf '%s' "</pbcoreInstantiationDocument>" >> "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    cat "$dir"/PBCoreInstantiations/pbcore_instantiation_"${artguid}"_"${i%.*}".xml >> pbcore_instantiation_"${artguid}"_"${i%.*}".xml
+    rm "$dir"/mediainfo.xml
+}
+
+
+mkdir files_needing_qc
+for d in $(find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type d -not -name *files_needing_qc); do
+	mv "$d" "$drive"/files_needing_qc
+done
+mkdir confirmed_good_files
+mkdir bad_files
+mkdir derivatives
+for d in $(find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type d -depth 2); do
+	cd "$d"
+	file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml)
+	i=$(echo "$file" | cut -d '/' -f 2 )
+	if grep $i "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/derivatives.csv"
+	then
+		cd "$drive"
+		mv "$d" "$drive"/derivatives
+	elif grep "$i" "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/md5_original_values.csv"; then
+		c=$(md5 -q "$i")
+		if grep "$i" "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/md5_original_values.csv" | grep "$c"; then
+			catfun
+			cd "$drive"
+			mv "$d" "$drive"/confirmed_good_files
+		else 
+			cd "$drive"
+			mv "$d" "$drive"/bad_files
+		fi
+	else
+		c=$(md5 -q "$i")
+		catfun
+		cd "$drive"
+	fi
+done
