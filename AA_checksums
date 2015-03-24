@@ -10,12 +10,18 @@ echo "Drag and drop the directory where you would like to save your checksum fil
 read dir
 echo "Type in the barcode number of the drive, in the format barcode######"
 read barcode
+echo "Drag and drop the directory for the drive on the LTO tape"
+read folder
 
-for d in $(find . \( ! -regex '.*/\..*' \) ! -path . -type d); do
+for d in $(find "$folder" \( ! -regex '.*/\..*' \) ! -path . -type d); do
     cd $d
-    file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml )
-    i=$( echo "$file" | cut -d '/' -f 2 )
-    c=$(md5 -q "$i")
-    printf '%s\n' "MD5 ("$i") = $c" >> "$dir"/"$barcode"_MD5_Copy.csv
-    cd .. 
+    if ls | grep *.xml; then
+        file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml )
+        i=$( echo "$file" | cut -d '/' -f 2 )
+        c=$(md5 -q "$i")
+        printf '%s\n' "MD5 ("$i") = $c" >> "$dir"/"$barcode"_MD5_Copy.csv
+        cd "$folder"
+    else
+        cd "$folder"
+    fi
 done
