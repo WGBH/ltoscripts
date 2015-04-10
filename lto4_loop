@@ -1,0 +1,16 @@
+#!/bin/bash
+# a script which performs a mass data dump of the contents of an LTO-4 tape formatted as a series of tar archives with a data block size of 256k by fast-forwarding the tape to identify the last file before the end of tape, then rewinding and sequentially downloading each file until that point  
+
+sudo mt -f /dev/nst0 eod
+sudo mt -f "/dev/nst0" status
+num=$( sudo mt -f "/dev/nst0" status | grep number | cut -d , -f 1 )
+echo $num
+sudo mt -f /dev/nst0 rewind
+sudo mt -f "/dev/nst0" status
+var=$( sudo mt -f "/dev/nst0" status | grep "$num")
+until [ "$var" ]; do
+    sudo dd if=/dev/nst0 ibs=256k obs=10k conv=sync | tar -xvf -
+    sudo mt -f "/dev/nst0" fsf 1
+    sudo mt -f "/dev/nst0" status
+    var=$( sudo mt -f "/dev/nst0" status | grep "$num")
+done
