@@ -2,9 +2,11 @@
 
 # a version of the AA_PBCorescript that automatically checks each drive for derivatives and known failed files using stored csv reference files, and isolates them without processing them
 
-echo "Drag and drop the drive to run the operation on and then hit ENTER"
+# manual data input for metadata creation
+
+echo "Drag and drop the drive to run the operation on"
 read drive
-echo "Drag and drop the directory where you would like to save your checksum files and instantiation records and then hit ENTER"
+echo "Drag and drop the directory where you would like to save your checksum files and instantiation records"
 read dir
 echo "Drag and drop the CSV file containing the AAPB GUIDs"
 read AAPB
@@ -15,10 +17,10 @@ read LTO
 mkdir "$dir"/PBCoreInstantiations
 
 catfun ()
-{ # create PBCore XML document for AAPB asset}
+{ # create PBCore XML document for AAPB asset
 
 	printf '%s\n' "MD5 ($i) = $c" >> "$dir"/"$barcode"_MD5_Source.csv
-    artguid=${PWD##*/}
+	printf '%s\n' "MD5 ($i) = $c" >> /Volumes/dept/MLA/Archives/LTO_Tape_Preservation/MD5/aapb_md5_total.csv
     guid=$( cat $AAPB | grep $artguid | cut -d , -f 2 )
     mediainfo --Output=PBCore2 "$i" >> "$dir"/mediainfo.xml
     driveid=$( pwd | cut -d / -f 3 )
@@ -39,16 +41,22 @@ catfun ()
     rm "$dir"/mediainfo.xml
 }
 
+# restructure drive for human-readability
 
+cd "$drive"
 mkdir files_needing_qc
-for d in $(find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type d -not -name *files_needing_qc); do
+for d in $(find "$drive" \( ! -regex '.*/\..*' \) -not -path . -type d -depth 1 -not -name *files_needing_qc); do
 	mv "$d" "$drive"/files_needing_qc
 done
 mkdir confirmed_good_files
 mkdir bad_files
 mkdir derivatives
+
+# check for derivatives and failed files before creating metadata
+
 for d in $(find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type d -depth 2); do
 	cd "$d"
+	artguid=$(echo "$d" | cut -d / -f 5)
 	file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml)
 	i=$(echo "$file" | cut -d '/' -f 2 )
 	if grep $i "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/derivatives.csv"
@@ -58,16 +66,30 @@ for d in $(find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type d -depth 2); d
 	elif grep "$i" "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/md5_original_values.csv"; then
 		c=$(md5 -q "$i")
 		if grep "$i" "/Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/md5_original_values.csv" | grep "$c"; then
-			catfun
-			cd "$drive"
-			mv "$d" "$drive"/confirmed_good_files
+			if grep "$c" /Volumes/dept/MLA/Archives/LTO_Tape_Preservation/MD5/aapb_md5_total.csv; then
+				cd "$drive"
+				mv "$d" "$drive"/derivatives
+			else
+			    cd "$drive"
+				mv "$d" "$drive"/confirmed_good_files/
+				cd "$drive"/confirmed_good_files/"$artguid"
+				catfun
+				cd "$drive"
+			fi
 		else 
+			driveid=$( echo "$drive" | cut -d / -f 3 )
 			cd "$drive"
 			mv "$d" "$drive"/bad_files
+			printf '\n%s' "$driveid,$artguid,$i" >> /Volumes/dept/MLA/Archives/LTO_Tape_Preservation/AA_Batch_IDs/corrupted_files.csv
 		fi
 	else
 		c=$(md5 -q "$i")
-		catfun
-		cd "$drive"
+		if grep "$c" /Volumes/dept/MLA/Archives/LTO_Tape_Preservation/MD5/aapb_md5_total.csv; then
+				cd "$drive"
+				mv "$d" "$drive"/derivatives
+			else
+				catfun
+				cd "$drive"
+			fi
 	fi
 done
