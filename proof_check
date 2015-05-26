@@ -1,0 +1,28 @@
+#!/bin/sh
+
+#  proof_check.sh
+#  
+#
+#  This script is designed as a follow-up to the batch_qt_proofsheet application, in order to create a list of files which were skipped by that process due to incompatibility with the software
+#
+
+echo "Drag and drop the drive"
+read drive
+echo "Drag and drop the folder containing files requiring QC"
+read folder
+echo "Drag and drop the directory where you would like to save your proofs"
+read dir
+
+echo "The following files are incompatible with qt_proofsheet; please check file manually" > "$dir"/QT_proofs/files_not_proofed.txt
+
+for f in $(find "$folder" -type f -not -name *.xml); do
+    artguid=$(echo "$f" | cut -d '/' -f 5)
+    file=$(echo "$f" | cut -d '/' -f 6)
+    name=$(echo "$file" | cut -d '.' -f 1)
+    if (find "$drive" \( ! -regex '.*/\..*' \) ! -path . -type f | grep "$name".jpg); then
+        echo 'proofsheet created successfully'
+    else
+        printf '\t%s\n' "$file in folder $artguid" >> "$dir"/QT_proofs/files_not_proofed.txt
+    fi
+    cat "$dir"/QT_proofs/files_not_proofed.txt > "$drive"/QT_proofs/files_not_proofed.txt
+done
