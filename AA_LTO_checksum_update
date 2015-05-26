@@ -6,7 +6,8 @@
 #  Created by MLA User on 1/7/15.
 #  This script only generates a list of checksums for transferred files, and assumes that AA_PBCorescript has been run to generate checksums for the original files
 
-echo "Drag and drop the directory where you would like to save your checksum files and then hit ENTER"
+
+echo "Drag and drop the directory where you would like to save your checksum files"
 read dir
 echo "Type in the barcode number of the drive, in the format barcode######"
 read barcode
