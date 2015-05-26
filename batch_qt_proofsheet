@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# script which runs the qt_proofsheet program on all the moving image files on an AAPB drive
+
+echo "Drag and drop the drive"
+read drive
+echo "Drag and drop the directory containing the files needing QC"
+read folder
+echo "Drag and drop the directory where you would like to save your proofs"
+read dir
+
+
+mkdir "$drive"/QT_proofs
+
+if ls "$dir" | grep QT_proofs; then
+    echo "folder exists"
+else
+    mkdir "$dir"/QT_proofs
+fi
+
+for d in $(find "$folder" \( ! -regex '.*/\..*' \) ! -path . -type d); do
+    cd "$d"
+    if ls | grep *.xml; then
+        artguid=${PWD##*/}
+        file=$( find . -type f -not -name *.xml )
+        name=$( echo "$file" | cut -d '/' -f 2 | cut -d '.' -f 1 )
+        qt_proofsheet "$file" "$dir"/QT_proofs/proof_"$artguid"_"$name".jpg
+        cp "$dir"/QT_proofs/proof_"$artguid"_"$name".jpg "$drive"/QT_proofs/proof_"$artguid"_"$name".jpg
+        cd "$folder"
+    else
+        cd "$folder"
+    fi
+
+done
