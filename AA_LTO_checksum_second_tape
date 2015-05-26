@@ -1,0 +1,27 @@
+#!/bin/sh
+
+#  AA_LTO_checksum.sh
+#  
+#
+#  Checksum script designed to be used when there are too many files on one drive to be copied to a single LTO tape
+#
+
+echo "Drag and drop the directory where you would like to save your checksum files and then hit ENTER"
+read dir
+echo "Type in the barcode number of the drive, in the format barcode######"
+read barcode
+echo "Drag and drop the directory for the drive on the LTO tape"
+read folder
+
+for d in $(find "$folder" \( ! -regex '.*/\..*' \) ! -path . -type d); do
+    cd $d
+    if ls | grep *.xml; then
+        file=$( find . \( ! -regex '.*/\..*' \) ! -path . -type f -not -name *.xml )
+        i=$( echo "$file" | cut -d '/' -f 2 )
+        c=$(md5 -q "$i")
+        printf '%s\n' "MD5 ("$i") = $c" >> "$dir"/"$barcode"_MD5_Copy_2.csv
+        cd "$folder"
+    else
+        cd "$folder"
+    fi
+done
